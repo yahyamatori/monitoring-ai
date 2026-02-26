@@ -18,8 +18,8 @@ ALLOWED_HOSTS = ['147.139.213.142', 'awarenes.investpro.id', 'localhost', '127.0
 # Application definition
 
 INSTALLED_APPS = [
-    'admin_interface',          # TAMBAHKAN INI (HARUS PALING ATAS)
-    'colorfield',               # TAMBAHKAN INI
+    # 'admin_interface',          # Commented out - causing issues
+    # 'colorfield',               # Commented out - causing issues
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -121,3 +121,9 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'  # Setelah login ke SOC Dashboard
 LOGOUT_REDIRECT_URL = '/login/'  # Setelah logout ke halaman login
+
+# Alibaba Cloud Configuration
+ALIYUN_ACCESS_KEY = ''  # Fill your Access Key ID
+ALIYUN_ACCESS_SECRET = ''  # Fill your Access Key Secret
+ALIYUN_REGION_ID = 'ap-southeast-3'  # Default region
+ALIYUN_DEFAULT_SECURITY_GROUP = ''  # Default Security Group ID

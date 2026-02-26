@@ -1,11 +1,14 @@
 from django.shortcuts import render
 from django.contrib.admin.sites import site
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, Max
 from django.utils import timezone
 from datetime import timedelta, datetime
-from .models import AttackLog, Alert, ThresholdConfig
+from .models import AttackLog, Alert, ThresholdConfig, IpBlock
 from django.contrib.auth import logout
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
+from django.http import JsonResponse, HttpResponse
+from django.conf import settings
+import json
 
 def home(request):
     # Data untuk dashboard (sama seperti sebelumnya)
@@ -186,3 +189,313 @@ def attack_analysis(request):
     
     return render(request, 'attack_analysis.html', context)
 
+
+# ============ IP BLOCKING VIEWS ============
+
+def ip_block_list(request):
+    """Menampilkan daftar IP yang akan di-block"""
+    
+    # Get all IP blocks
+    ip_blocks = IpBlock.objects.all()
+    
+    # Get statistics
+    pending_count = ip_blocks.filter(status='pending').count()
+    blocked_count = ip_blocks.filter(status='blocked').count()
+    
+    context = {
+        'ip_blocks': ip_blocks,
+        'pending_count': pending_count,
+        'blocked_count': blocked_count,
+    }
+    
+    return render(request, 'ip_block_list.html', context)
+
+
+def add_to_block_list(request):
+    """Menambahkan IP ke daftar block (manual)"""
+    
+    if request.method == 'POST':
+        src_ip = request.POST.get('src_ip')
+        reason = request.POST.get('reason', 'Manual block')
+        severity = request.POST.get('severity', 'High')
+        attack_count = request.POST.get('attack_count', 1)
+        
+        # Check if IP already exists
+        existing = IpBlock.objects.filter(src_ip=src_ip, status='pending').first()
+        
+        if existing:
+            # Update existing record
+            existing.attack_count += int(attack_count)
+            existing.reason = reason
+            existing.save()
+            message = f'IP {src_ip} sudah ada,数据进行更新'
+        else:
+            # Create new record
+            IpBlock.objects.create(
+                src_ip=src_ip,
+                reason=reason,
+                attack_count=int(attack_count),
+                severity=severity,
+                status='pending'
+            )
+            message = f'IP {src_ip} berhasil ditambahkan ke daftar block'
+        
+        return JsonResponse({'status': 'success', 'message': message})
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'})
+
+
+def auto_add_to_block_list(request):
+    """Otomatis menambahkan IP ke daftar block berdasarkan threshold"""
+    # Threshold: High/Critical severity ATAU attack_count > 20
+    
+    # Get IPs with High/Critical severity
+    high_severity_ips = AttackLog.objects.filter(
+        severity__in=['High', 'Critical']
+    ).values('src_ip').annotate(
+        total_count=Sum('count'),
+        max_severity=Max('severity')
+    ).filter(total_count__gte=1)
+    
+    # Get IPs with high attack count (>20)
+    high_count_ips = AttackLog.objects.values('src_ip').annotate(
+        total_count=Sum('count')
+    ).filter(total_count__gt=20)
+    
+    added_count = 0
+    
+    # Process high severity IPs
+    for ip_data in high_severity_ips:
+        src_ip = ip_data['src_ip']
+        severity = ip_data['max_severity']
+        attack_count = ip_data['total_count']
+        
+        # Check if already exists
+        existing = IpBlock.objects.filter(src_ip=src_ip, status__in=['pending', 'blocked']).first()
+        
+        if not existing:
+            IpBlock.objects.create(
+                src_ip=src_ip,
+                reason=f'Auto-added: {severity} severity attack',
+                attack_count=attack_count,
+                severity=severity,
+                status='pending'
+            )
+            added_count += 1
+    
+    # Process high count IPs
+    for ip_data in high_count_ips:
+        src_ip = ip_data['src_ip']
+        attack_count = ip_data['total_count']
+        
+        # Check if already exists
+        existing = IpBlock.objects.filter(src_ip=src_ip, status__in=['pending', 'blocked']).first()
+        
+        if not existing:
+            IpBlock.objects.create(
+                src_ip=src_ip,
+                reason=f'Auto-added: High attack count ({attack_count} attacks)',
+                attack_count=attack_count,
+                severity='Critical',
+                status='pending'
+            )
+            added_count += 1
+    
+    return JsonResponse({
+        'status': 'success', 
+        'message': f'Berhasil menambahkan {added_count} IP ke daftar block'
+    })
+
+
+def get_security_groups(request):
+    """Mendapatkan daftar Security Groups dari Alibaba Cloud"""
+    
+    try:
+        from aliyunsdkcore.client import AcsClient
+        from aliyunsdkcore.request import CommonRequest
+        
+        access_key = getattr(settings, 'ALIYUN_ACCESS_KEY', '')
+        access_secret = getattr(settings, 'ALIYUN_ACCESS_SECRET', '')
+        region_id = getattr(settings, 'ALIYUN_REGION_ID', 'ap-southeast-3')
+        
+        if not access_key or not access_secret:
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'Alibaba Cloud credentials not configured'
+            })
+        
+        client = AcsClient(access_key, access_secret, region_id)
+        
+        req = CommonRequest()
+        req.set_accept_format('json')
+        req.set_domain('ecs.aliyuncs.com')
+        req.set_method('POST')
+        req.set_protocol_type('https')
+        req.set_version('2014-05-26')
+        req.add_query_param('Action', 'DescribeSecurityGroups')
+        req.add_query_param('RegionId', region_id)
+        
+        response = client.do_action_with_exception(req)
+        result = json.loads(response.decode('utf-8'))
+        
+        security_groups = []
+        if 'SecurityGroups' in result and 'SecurityGroup' in result['SecurityGroups']:
+            for sg in result['SecurityGroups']['SecurityGroup']:
+                security_groups.append({
+                    'id': sg['SecurityGroupId'],
+                    'name': sg['SecurityGroupName'],
+                    'vpc_id': sg.get('VpcId', '')
+                })
+        
+        return JsonResponse({
+            'status': 'success',
+            'security_groups': security_groups
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        })
+
+
+def block_ip(request, block_id):
+    """Melakukan blocking IP ke Alibaba Cloud Security Group"""
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            security_group_id = data.get('security_group_id')
+            
+            # Get IP Block record
+            ip_block = IpBlock.objects.get(id=block_id)
+            
+            # Check if credentials are configured
+            access_key = getattr(settings, 'ALIYUN_ACCESS_KEY', '')
+            access_secret = getattr(settings, 'ALIYUN_ACCESS_SECRET', '')
+            region_id = getattr(settings, 'ALIYUN_REGION_ID', 'ap-southeast-3')
+            
+            if not access_key or not access_secret:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Alibaba Cloud credentials not configured. Please fill ALIYUN_ACCESS_KEY and ALIYUN_ACCESS_SECRET in settings.py'
+                })
+            
+            # Block IP using Alibaba Cloud SDK
+            from aliyunsdkcore.client import AcsClient
+            from aliyunsdkcore.request import CommonRequest
+            
+            client = AcsClient(access_key, access_secret, region_id)
+            
+            req = CommonRequest()
+            req.set_accept_format('json')
+            req.set_domain('ecs.aliyuncs.com')
+            req.set_method('POST')
+            req.set_protocol_type('https')
+            req.set_version('2014-05-26')
+            req.add_query_param('Action', 'AuthorizeSecurityGroup')
+            req.add_query_param('RegionId', region_id)
+            req.add_query_param('SecurityGroupId', security_group_id)
+            req.add_query_param('IpProtocol', 'all')
+            req.add_query_param('SourceCidrIp', ip_block.src_ip + '/32')
+            req.add_query_param('Policy', 'Drop')
+            req.add_query_param('Description', f'Blocked by SOC - {ip_block.reason}')
+            
+            response = client.do_action_with_exception(req)
+            
+            # Update IP Block status
+            ip_block.status = 'blocked'
+            ip_block.security_group_id = security_group_id
+            ip_block.blocked_at = timezone.now()
+            ip_block.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'IP {ip_block.src_ip} berhasil di-block di Security Group {security_group_id}'
+            })
+            
+        except IpBlock.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'IP Block record not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error blocking IP: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })
+
+
+def unblock_ip(request, block_id):
+    """Melakukan unblock IP dari Alibaba Cloud Security Group"""
+    
+    if request.method == 'POST':
+        try:
+            ip_block = IpBlock.objects.get(id=block_id)
+            
+            if not ip_block.security_group_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No Security Group associated with this block'
+                })
+            
+            access_key = getattr(settings, 'ALIYUN_ACCESS_KEY', '')
+            access_secret = getattr(settings, 'ALIYUN_ACCESS_SECRET', '')
+            region_id = getattr(settings, 'ALIYUN_REGION_ID', 'ap-southeast-3')
+            
+            if not access_key or not access_secret:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Alibaba Cloud credentials not configured'
+                })
+            
+            # Unblock IP using Alibaba Cloud SDK
+            from aliyunsdkcore.client import AcsClient
+            from aliyunsdkcore.request import CommonRequest
+            
+            client = AcsClient(access_key, access_secret, region_id)
+            
+            req = CommonRequest()
+            req.set_accept_format('json')
+            req.set_domain('ecs.aliyuncs.com')
+            req.set_method('POST')
+            req.set_protocol_type('https')
+            req.set_version('2014-05-26')
+            req.add_query_param('Action', 'RevokeSecurityGroup')
+            req.add_query_param('RegionId', region_id)
+            req.add_query_param('SecurityGroupId', ip_block.security_group_id)
+            req.add_query_param('IpProtocol', 'all')
+            req.add_query_param('SourceCidrIp', ip_block.src_ip + '/32')
+            req.add_query_param('Policy', 'Drop')
+            
+            response = client.do_action_with_exception(req)
+            
+            # Update IP Block status
+            ip_block.status = 'unblocked'
+            ip_block.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'IP {ip_block.src_ip} berhasil di-unblock'
+            })
+            
+        except IpBlock.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'IP Block record not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error unblocking IP: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })

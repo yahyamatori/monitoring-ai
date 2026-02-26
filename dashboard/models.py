@@ -42,3 +42,27 @@ class ThresholdConfig(models.Model):
     class Meta:
         db_table = 'threshold_config'
         managed = False
+
+
+class IpBlock(models.Model):
+    """Model untuk menyimpan IP yang akan di-block"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('blocked', 'Blocked'),
+        ('unblocked', 'Unblocked'),
+    ]
+    
+    id = models.AutoField(primary_key=True)
+    src_ip = models.CharField(max_length=45)
+    reason = models.CharField(max_length=255)
+    attack_count = models.IntegerField(default=0)
+    severity = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    security_group_id = models.CharField(max_length=50, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    blocked_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'ip_block'
+        managed = True
+        ordering = ['-created_at']
