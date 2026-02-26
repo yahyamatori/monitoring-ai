@@ -12,4 +12,6 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='admin/login.html'), name='login'),
     path('logout/', views.custom_logout, name='logout'),  # PAKAI VIEW CUSTOM
     path('', views.home, name='home'),
+    # Attack Analysis
+    path('attack-analysis/', views.attack_analysis, name='attack_analysis'),
 ]
