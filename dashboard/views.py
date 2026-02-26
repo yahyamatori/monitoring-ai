@@ -129,9 +129,9 @@ def attack_analysis(request):
     severities = AttackLog.objects.values_list('severity', flat=True).distinct()
     
     # Analysis data
-    # Top 10 attackers
-    top_attackers = queryset.values('src_ip').annotate(
-        total=Sum('count')
+    # Top 10 attackers - dikelompokkan berdasarkan IP dan Attack Type
+    top_attackers = queryset.values('src_ip', 'attack_type').annotate(
+        total=Count('id')
     ).order_by('-total')[:10]
     
     # Attack types distribution
