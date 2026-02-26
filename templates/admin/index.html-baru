@@ -1,0 +1,73 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}{{ block.super }}
+<link rel="stylesheet" type="text/css" href="{% static "admin/css/dashboard.css" %}">
+<style>
+    /* Sembunyikan duplikasi */
+    .module:contains("Site Administration") {
+        display: none;
+    }
+    /* Atur ulang tampilan */
+    #content-main {
+        width: 100%;
+    }
+    .module table {
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block coltype %}colMS{% endblock %}
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    {% if app_list %}
+        {% for app in app_list %}
+            <div class="module">
+                <table summary="{% blocktranslate with name=app.name %}Models available in the {{ name }} application.{% endblocktranslate %}">
+                    <caption>
+                        <a href="{{ app.app_url }}" class="section">{% translate app.name %}</a>
+                    </caption>
+                    {% for model in app.models %}
+                        <tr>
+                            <td scope="row">
+                                {% if model.admin_url %}
+                                    <a href="{{ model.admin_url }}">{{ model.name }}</a>
+                                {% else %}
+                                    {{ model.name }}
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if model.add_url %}
+                                    <a href="{{ model.add_url }}" class="addlink">{% translate 'Add' %}</a>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if model.admin_url and show_changelinks %}
+                                    {% if model.view_only %}
+                                        <a href="{{ model.admin_url }}" class="viewlink">{% translate 'View' %}</a>
+                                    {% else %}
+                                        <a href="{{ model.admin_url }}" class="changelink">{% translate 'Change' %}</a>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>{% translate 'You don’t have permission to view or edit anything.' %}</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block sidebar %}
+{# KOSONGKAN SIDEBAR UNTUK MENGHILANGKAN RECENT ACTIONS #}
+<div id="content-related" style="display: none;"></div>
+{% endblock %}
