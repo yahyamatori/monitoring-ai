@@ -126,6 +126,29 @@
         <!-- Sidebar Admin -->
         <div class="admin-sidebar">
             <h3>Site Administration</h3>
+            
+            <div class="app-list">
+                {% for app in app_list %}
+                <div class="app-item">
+                    <div class="app-name">{{ app.name }}</div>
+                    <ul class="model-list">
+                        {% for model in app.models %}
+                        <li class="model-item">
+                            <a href="{{ model.admin_url }}">
+                                {{ model.name }}
+                                {% if model.add_url %}
+                                    <span class="addlink">➕Add</span>
+                                {% endif %}
+                                {% if model.admin_url %}
+                                    <span class="changelink">✏️Change</span>
+                                {% endif %}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+                
                 <!-- Custom Menu: Attack Analysis -->
                 <div class="app-item">
                     <div class="app-name">Analysis Tools</div>
