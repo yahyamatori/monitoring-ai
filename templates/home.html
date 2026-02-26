@@ -126,6 +126,19 @@
         <!-- Sidebar Admin -->
         <div class="admin-sidebar">
             <h3>Site Administration</h3>
+            
+            <div class="app-list">
+                {% for app in app_list %}
+                <div class="app-item">
+                    <div class="app-name">{{ app.name }}</div>
+                    <ul class="model-list">
+                        {% for model in app.models %}
+                       
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endfor %}
+                
                 <!-- Custom Menu: Attack Analysis -->
                 <div class="app-item">
                     <div class="app-name">Analysis Tools</div>
