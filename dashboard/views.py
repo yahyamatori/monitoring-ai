@@ -5,11 +5,14 @@ from django.utils import timezone
 from datetime import timedelta, datetime
 from .models import AttackLog, Alert, ThresholdConfig, IpBlock
 from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 import json
 
+
+@login_required(login_url='/login/')
 def home(request):
     # Data untuk dashboard (sama seperti sebelumnya)
     last_24h = timezone.now() - timedelta(hours=24)
@@ -86,9 +89,13 @@ def home(request):
 def custom_logout(request):
     """Logout dan redirect ke halaman login"""
     logout(request)
+    # Hapus semua data session
+    if request.session.session_key:
+        request.session.flush()
     return redirect('login')
 
 
+@login_required(login_url='/login/')
 def attack_analysis(request):
     """Menu untuk menganalisa pola serangan dari tabel attack_logs"""
     
@@ -192,6 +199,7 @@ def attack_analysis(request):
 
 # ============ IP BLOCKING VIEWS ============
 
+@login_required(login_url='/login/')
 def ip_block_list(request):
     """Menampilkan daftar IP yang akan di-block"""
     
