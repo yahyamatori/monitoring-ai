@@ -21,4 +21,9 @@ urlpatterns = [
     path('ip-block/get-security-groups/', views.get_security_groups, name='get_security_groups'),
     path('ip-block/block/<int:block_id>/', views.block_ip, name='block_ip'),
     path('ip-block/unblock/<int:block_id>/', views.unblock_ip, name='unblock_ip'),
+    # Delete Data
+    path('delete/', views.delete_data, name='delete_data'),
+    path('delete/attack-logs/', views.delete_attack_logs, name='delete_attack_logs'),
+    path('delete/alerts/', views.delete_alerts, name='delete_alerts'),
+    path('delete/threshold-config/', views.delete_threshold_config, name='delete_threshold_config'),
 ]

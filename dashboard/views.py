@@ -507,3 +507,141 @@ def unblock_ip(request, block_id):
         'status': 'error',
         'message': 'Invalid request method'
     })
+
+
+# ============ DELETE DATA VIEWS ============
+
+@login_required(login_url='/login/')
+def delete_attack_logs(request):
+    """Menghapus attack logs berdasarkan filter tanggal"""
+    
+    if request.method == 'POST':
+        try:
+            start_date = request.POST.get('start_date')
+            end_date = request.POST.get('end_date')
+            
+            if not start_date or not end_date:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Start date and end date are required'
+                })
+            
+            # Parse dates
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            
+            # Delete matching records
+            deleted_count, _ = AttackLog.objects.filter(
+                timestamp__gte=start,
+                timestamp__lte=end
+            ).delete()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Berhasil menghapus {deleted_count} data attack logs'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error deleting data: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })
+
+
+@login_required(login_url='/login/')
+def delete_alerts(request):
+    """Menghapus alerts berdasarkan filter tanggal"""
+    
+    if request.method == 'POST':
+        try:
+            start_date = request.POST.get('start_date')
+            end_date = request.POST.get('end_date')
+            
+            if not start_date or not end_date:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Start date and end date are required'
+                })
+            
+            # Parse dates
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            end = end.replace(hour=23, minute=59, second=59)
+            
+            # Delete matching records
+            deleted_count, _ = Alert.objects.filter(
+                timestamp__gte=start,
+                timestamp__lte=end
+            ).delete()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Berhasil menghapus {deleted_count} data alerts'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error deleting data: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })
+
+
+@login_required(login_url='/login/')
+def delete_threshold_config(request):
+    """Menghapus threshold config berdasarkan filter"""
+    
+    if request.method == 'POST':
+        try:
+            threshold_ids = request.POST.getlist('threshold_ids')
+            
+            if not threshold_ids:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No thresholds selected'
+                })
+            
+            # Delete selected thresholds
+            deleted_count = ThresholdConfig.objects.filter(
+                id__in=threshold_ids
+            ).delete()[0]
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'Berhasil menghapus {deleted_count} threshold config'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error deleting data: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })
+
+
+@login_required(login_url='/login/')
+def delete_data(request):
+    """Halaman untuk menghapus data dari berbagai tabel"""
+    
+    # Get all thresholds for selection
+    thresholds = ThresholdConfig.objects.all()
+    
+    context = {
+        'thresholds': thresholds,
+    }
+    
+    return render(request, 'delete_data.html', context)
