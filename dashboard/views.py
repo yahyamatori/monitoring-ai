@@ -645,3 +645,41 @@ def delete_data(request):
     }
     
     return render(request, 'delete_data.html', context)
+
+
+@login_required(login_url='/login/')
+def edit_threshold_config(request, threshold_id):
+    """Mengedit threshold config"""
+    
+    if request.method == 'POST':
+        try:
+            threshold = ThresholdConfig.objects.get(id=threshold_id)
+            
+            threshold.alert_type = request.POST.get('alert_type')
+            threshold.threshold_value = int(request.POST.get('threshold_value'))
+            threshold.time_window = int(request.POST.get('time_window'))
+            threshold.severity = request.POST.get('severity')
+            threshold.is_active = request.POST.get('is_active') == 'on'
+            threshold.description = request.POST.get('description', '')
+            threshold.save()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Threshold config berhasil diperbarui'
+            })
+            
+        except ThresholdConfig.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Threshold config not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error updating data: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })

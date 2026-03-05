@@ -26,4 +26,5 @@ urlpatterns = [
     path('delete/attack-logs/', views.delete_attack_logs, name='delete_attack_logs'),
     path('delete/alerts/', views.delete_alerts, name='delete_alerts'),
     path('delete/threshold-config/', views.delete_threshold_config, name='delete_threshold_config'),
+    path('edit/threshold-config/<int:threshold_id>/', views.edit_threshold_config, name='edit_threshold_config'),
 ]
