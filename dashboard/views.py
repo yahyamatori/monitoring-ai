@@ -1,8 +1,4 @@
-from django.shortcuts import render
-from django.contrib.admin.sites import site
-from django.db.models import Count, Sum, Max
-from django.utils import timezone
-from datetime import timedelta, datetime
+
 from .models import AttackLog, Alert, ThresholdConfig, IpBlock
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
@@ -437,6 +433,167 @@ def block_ip(request, block_id):
         'status': 'error',
         'message': 'Invalid request method'
     })
+
+
+# ============ INSTANCE MAPPING VIEWS ============
+
+@login_required(login_url='/login/')
+def instance_mapping_list(request):
+    """Menampilkan daftar instance mapping"""
+    
+    instances = InstanceMapping.objects.filter(is_active=True)
+    
+    context = {
+        'instances': instances,
+    }
+    
+    return render(request, 'instance_mapping.html', context)
+
+
+def sync_instances(request):
+    """Sync instances dari Alibaba Cloud ke database"""
+    
+    try:
+        from aliyunsdkcore.client import AcsClient
+        from aliyunsdkcore.request import CommonRequest
+        
+        access_key = getattr(settings, 'ALIYUN_ACCESS_KEY', '')
+        access_secret = getattr(settings, 'ALIYUN_ACCESS_SECRET', '')
+        region_id = getattr(settings, 'ALIYUN_REGION_ID', 'ap-southeast-3')
+        
+        if not access_key or not access_secret:
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'Alibaba Cloud credentials not configured'
+            })
+        
+        client = AcsClient(access_key, access_secret, region_id)
+        
+        # Get all instances
+        req = CommonRequest()
+        req.set_accept_format('json')
+        req.set_domain('ecs.aliyuncs.com')
+        req.set_method('POST')
+        req.set_protocol_type('https')
+        req.set_version('2014-05-26')
+        req.add_query_param('Action', 'DescribeInstances')
+        req.add_query_param('RegionId', region_id)
+        req.add_query_param('PageSize', '100')
+        
+        response = client.do_action_with_exception(req)
+        result = json.loads(response.decode('utf-8'))
+        
+        added_count = 0
+        updated_count = 0
+        
+        if 'Instances' in result and 'Instance' in result['Instances']:
+            for instance in result['Instances']['Instance']:
+                hostname = instance.get('InstanceName', '')
+                instance_id = instance.get('InstanceId', '')
+                public_ip = instance.get('PublicIpAddress', {}).get('IpAddress', [''])[0] if instance.get('PublicIpAddress') else None
+                private_ip = instance.get('InnerIpAddress', {}).get('IpAddress', [''])[0] if instance.get('InnerIpAddress') else None
+                
+                # Get security groups
+                security_group_ids = instance.get('SecurityGroupIds', {}).get('SecurityGroupId', [])
+                if isinstance(security_group_ids, str):
+                    security_group_ids = [security_group_ids]
+                
+                # Create or update instance mapping
+                for sg_id in security_group_ids:
+                    mapping, created = InstanceMapping.objects.update_or_create(
+                        hostname=hostname,
+                        instance_id=instance_id,
+                        defaults={
+                            'public_ip': public_ip,
+                            'private_ip': private_ip,
+                            'security_group_id': sg_id,
+                            'region_id': region_id,
+                            'is_active': True,
+                        }
+                    )
+                    
+                    if created:
+                        added_count += 1
+                    else:
+                        updated_count += 1
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Successfully synced: {added_count} new, {updated_count} updated instances'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        })
+
+
+def add_instance_mapping(request):
+    """Menambahkan instance mapping secara manual"""
+    
+    if request.method == 'POST':
+        hostname = request.POST.get('hostname')
+        instance_id = request.POST.get('instance_id')
+        public_ip = request.POST.get('public_ip')
+        private_ip = request.POST.get('private_ip')
+        security_group_id = request.POST.get('security_group_id')
+        security_group_name = request.POST.get('security_group_name', '')
+        
+        if not hostname or not security_group_id:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Hostname and Security Group are required'
+            })
+        
+        # Check if exists
+        existing = InstanceMapping.objects.filter(hostname=hostname).first()
+        
+        if existing:
+            # Update
+            existing.instance_id = instance_id
+            existing.public_ip = public_ip
+            existing.private_ip = private_ip
+            existing.security_group_id = security_group_id
+            existing.security_group_name = security_group_name
+            existing.save()
+            message = f'Instance {hostname} updated successfully'
+        else:
+            # Create
+            InstanceMapping.objects.create(
+                hostname=hostname,
+                instance_id=instance_id,
+                public_ip=public_ip,
+                private_ip=private_ip,
+                security_group_id=security_group_id,
+                security_group_name=security_group_name,
+            )
+            message = f'Instance {hostname} added successfully'
+        
+        return JsonResponse({'status': 'success', 'message': message})
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'})
+
+
+def delete_instance_mapping(request, mapping_id):
+    """Menghapus instance mapping"""
+    
+    if request.method == 'POST':
+        try:
+            mapping = InstanceMapping.objects.get(id=mapping_id)
+            mapping.is_active = False
+            mapping.save()
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Instance mapping deleted successfully'
+            })
+        except InstanceMapping.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Instance mapping not found'
+            })
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'})
 
 
 def unblock_ip(request, block_id):

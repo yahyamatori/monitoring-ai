@@ -1,0 +1,318 @@
+{% load i18n static %}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instance Mapping - SOC Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: #f4f6f9;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 20px;
+            min-height: 100vh;
+        }
+        
+        .admin-sidebar {
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .admin-sidebar h3 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0d6efd;
+        }
+        
+        .admin-sidebar .app-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .admin-sidebar .app-item {
+            margin-bottom: 20px;
+        }
+        
+        .admin-sidebar .app-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #0d6efd;
+        }
+        
+        .admin-sidebar .model-list {
+            list-style: none;
+            padding-left: 15px;
+        }
+        
+        .admin-sidebar .model-item {
+            margin-bottom: 8px;
+        }
+        
+        .admin-sidebar .model-item a {
+            color: #333;
+            text-decoration: none;
+            display: block;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        
+        .admin-sidebar .model-item a:hover {
+            background: #e9ecef;
+        }
+        
+        .admin-sidebar .model-item a.active {
+            background: #0d6efd;
+            color: white;
+        }
+        
+        .main-content {
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .table-card {
+            background: white;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .badge-active { background: #28a745; color: white; }
+        .badge-inactive { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-grid">
+        <!-- Sidebar Admin -->
+        <div class="admin-sidebar">
+            <h3>Site Administration</h3>
+            
+            <div class="app-list">
+                <div class="app-item">
+                    <div class="app-name">SOC Dashboard</div>
+                    <ul class="model-list">
+                        <li class="model-item">
+                            <a href="{% url 'home' %}">
+                                <i class="bi bi-speedometer2"></i> Dashboard Main
+                            </a>
+                        </li>
+                        <li class="model-item">
+                            <a href="{% url 'attack_analysis' %}">
+                                <i class="bi bi-shield-exclamation"></i> Attack Analysis
+                            </a>
+                        </li>
+                        <li class="model-item">
+                            <a href="{% url 'ip_block_list' %}">
+                                <i class="bi bi-shield-x"></i> IP Block List
+                            </a>
+                        </li>
+                        <li class="model-item">
+                            <a href="{% url 'instance_mapping_list' %}" class="active">
+                                <i class="bi bi-server"></i> Instance Mapping
+                            </a>
+                        </li>
+                        <li class="model-item">
+                            <a href="{% url 'delete_data' %}">
+                                <i class="bi bi-trash"></i> Delete Data
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <hr>
+            <div class="mt-3">
+                <a href="{% url 'logout' %}" class="btn btn-danger btn-sm w-100">Logout</a>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <h2 class="mb-4"><i class="bi bi-server"></i> Instance Mapping</h2>
+            
+            <!-- Actions -->
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="stat-card">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5><i class="bi bi-cloud-download"></i> Sync dari Alibaba Cloud</h5>
+                            <button class="btn btn-primary" onclick="syncInstances()">
+                                <i class="bi bi-arrow-repeat"></i> Sync Instances
+                            </button>
+                        </div>
+                        <p class="text-muted mt-2">Sinkronkan data instance dari Alibaba Cloud ECS untuk mapping IP ke hostname dan security group.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Manual Add Form -->
+            <div class="table-card">
+                <h5><i class="bi bi-plus-circle"></i> Add Instance Manually</h5>
+                <form id="addInstanceForm" class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Hostname</label>
+                        <input type="text" class="form-control" name="hostname" placeholder="e.g., web-server-01" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Instance ID</label>
+                        <input type="text" class="form-control" name="instance_id" placeholder="e.g., i-k1abc123">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Public IP</label>
+                        <input type="text" class="form-control" name="public_ip" placeholder="e.g., 1.2.3.4">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Private IP</label>
+                        <input type="text" class="form-control" name="private_ip" placeholder="e.g., 10.0.0.1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Security Group ID</label>
+                        <input type="text" class="form-control" name="security_group_id" placeholder="e.g., sg-k1abc123">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="bi bi-plus"></i> Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Instance Mapping Table -->
+            <div class="table-card">
+                <h5><i class="bi bi-list"></i> Instance List</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Hostname</th>
+                                <th>Instance ID</th>
+                                <th>Public IP</th>
+                                <th>Private IP</th>
+                                <th>Security Group</th>
+                                <th>Region</th>
+                                <th>Last Updated</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for instance in instances %}
+                            <tr>
+                                <td><strong>{{ instance.hostname }}</strong></td>
+                                <td><code>{{ instance.instance_id }}</code></td>
+                                <td>{{ instance.public_ip|default:"-" }}</td>
+                                <td>{{ instance.private_ip|default:"-" }}</td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        {{ instance.security_group_id|default:"-" }}
+                                    </span>
+                                </td>
+                                <td>{{ instance.region_id }}</td>
+                                <td>{{ instance.last_updated|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteInstance({{ instance.id }})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center">No instances found. Click "Sync Instances" to fetch from Alibaba Cloud.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Sync instances from Alibaba Cloud
+        function syncInstances() {
+            if (!confirm('Sync instances from Alibaba Cloud? This will update existing mappings and add new ones.')) return;
+            
+            fetch('{% url "sync_instances" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.status === 'success') {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+        }
+        
+        // Add instance manually
+        document.getElementById('addInstanceForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch('{% url "add_instance_mapping" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.status === 'success') {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+        });
+        
+        // Delete instance
+        function deleteInstance(id) {
+            if (!confirm('Are you sure you want to delete this instance mapping?')) return;
+            
+            fetch('/instance-mapping/delete/' + id + '/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                if (data.status === 'success') {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error);
+            });
+        }
+    </script>
+</body>
+</html>
+

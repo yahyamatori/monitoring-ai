@@ -27,4 +27,9 @@ urlpatterns = [
     path('delete/alerts/', views.delete_alerts, name='delete_alerts'),
     path('delete/threshold-config/', views.delete_threshold_config, name='delete_threshold_config'),
     path('edit/threshold-config/<int:threshold_id>/', views.edit_threshold_config, name='edit_threshold_config'),
+    # Instance Mapping
+    path('instance-mapping/', views.instance_mapping_list, name='instance_mapping_list'),
+    path('instance-mapping/sync/', views.sync_instances, name='sync_instances'),
+    path('instance-mapping/add/', views.add_instance_mapping, name='add_instance_mapping'),
+    path('instance-mapping/delete/<int:mapping_id>/', views.delete_instance_mapping, name='delete_instance_mapping'),
 ]
