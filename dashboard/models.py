@@ -1,4 +1,5 @@
 from django.db import models
+import socket
 
 class AttackLog(models.Model):
     id = models.IntegerField(primary_key=True)
@@ -12,10 +13,33 @@ class AttackLog(models.Model):
     severity = models.CharField(max_length=20)
     count = models.IntegerField()
     raw_data = models.TextField(null=True, blank=True)
+    hostname = models.CharField(max_length=255, null=True, blank=True)  # Hostname field
 
     class Meta:
         db_table = 'attack_logs'
         managed = False
+
+    def get_src_hostname(self):
+        """Get hostname from source IP using reverse DNS"""
+        if self.hostname:
+            return self.hostname
+        try:
+            if self.src_ip:
+                hostname, _, _ = socket.gethostbyaddr(self.src_ip)
+                return hostname
+        except (socket.herror, socket.gaierror, socket.timeout):
+            pass
+        return self.src_ip
+    
+    def get_dst_hostname(self):
+        """Get hostname from destination IP using reverse DNS"""
+        try:
+            if self.dst_ip:
+                hostname, _, _ = socket.gethostbyaddr(self.dst_ip)
+                return hostname
+        except (socket.herror, socket.gaierror, socket.timeout):
+            pass
+        return self.dst_ip if self.dst_ip else "-"
 
 class Alert(models.Model):
     id = models.IntegerField(primary_key=True)
