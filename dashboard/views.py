@@ -16,6 +16,9 @@ import json
 
 @login_required(login_url='/login/')
 def home(request):
+    # Get pagination parameter
+    page = request.GET.get('page', 1)
+    
     # Total serangan - Tampilkan SEMUA data tanpa filter waktu
     total_attacks = AttackLog.objects.aggregate(total=Count('id'))['total'] or 0
     
@@ -32,8 +35,16 @@ def home(request):
         total=Sum('count')
     ).order_by('-total')[:10]
     
-    # Recent attack logs - Tampilkan 20 data terbaru
-    recent_attacks = AttackLog.objects.order_by('-timestamp')[:20]
+    # Recent attack logs - With pagination (25 items per page)
+    all_recent_attacks = AttackLog.objects.order_by('-timestamp')
+    paginator = Paginator(all_recent_attacks, 25)
+    
+    try:
+        recent_attacks = paginator.page(page)
+    except PageNotAnInteger:
+        recent_attacks = paginator.page(1)
+    except EmptyPage:
+        recent_attacks = paginator.page(paginator.num_pages)
     
     # Attack types distribution - Tampilkan SEMUA data
     attack_types = AttackLog.objects.values('attack_type').annotate(
