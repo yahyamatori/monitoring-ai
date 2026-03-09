@@ -436,6 +436,8 @@
                                 <th>Timestamp</th>
                                 <th>Source IP</th>
                                 <th>Hostname</th>
+                                <th>Dest IP</th>
+                                <th>Dest Hostname</th>
                                 <th>Source Port</th>
                                 <th>Dest Port</th>
                                 <th>Protocol</th>
@@ -450,6 +452,8 @@
                                 <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
                                 <td><code>{{ log.src_ip }}</code></td>
                                 <td><small>{{ log.get_src_hostname }}</small></td>
+                                <td><code>{{ log.dst_ip|default:"-" }}</code></td>
+                                <td><small>{{ log.get_dst_hostname }}</small></td>
                                 <td>{{ log.src_port|default:"-" }}</td>
                                 <td>{{ log.dst_port|default:"-" }}</td>
                                 <td>{{ log.protocol|default:"-" }}</td>

@@ -10,5 +10,3 @@ ALTER TABLE ip_block ADD COLUMN hostname VARCHAR(255) NULL AFTER severity;
 ALTER TABLE ip_block ADD COLUMN instance_id VARCHAR(50) NULL AFTER hostname;
 
 -- Verifikasi struktur tabel setelah perubahan
-DESCRIBE ip_block;
-
