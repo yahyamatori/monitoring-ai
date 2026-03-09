@@ -720,6 +720,72 @@ def unblock_ip(request, block_id):
     })
 
 
+def delete_ip_block(request, block_id):
+    """Menghapus IP dari block list dan melakukan unblock dari Alibaba Cloud jika diperlukan"""
+    
+    if request.method == 'POST':
+        try:
+            ip_block = IpBlock.objects.get(id=block_id)
+            src_ip = ip_block.src_ip
+            security_group_id = ip_block.security_group_id
+            status = ip_block.status
+            
+            # Jika sudah di-block, lakukan unblock dari Alibaba Cloud dulu
+            if status == 'blocked' and security_group_id:
+                access_key = getattr(settings, 'ALIYUN_ACCESS_KEY', '')
+                access_secret = getattr(settings, 'ALIYUN_ACCESS_SECRET', '')
+                region_id = getattr(settings, 'ALIYUN_REGION_ID', 'ap-southeast-3')
+                
+                if access_key and access_secret:
+                    try:
+                        from aliyunsdkcore.client import AcsClient
+                        from aliyunsdkcore.request import CommonRequest
+                        
+                        client = AcsClient(access_key, access_secret, region_id)
+                        
+                        req = CommonRequest()
+                        req.set_accept_format('json')
+                        req.set_domain('ecs.aliyuncs.com')
+                        req.set_method('POST')
+                        req.set_protocol_type('https')
+                        req.set_version('2014-05-26')
+                        req.add_query_param('Action', 'RevokeSecurityGroup')
+                        req.add_query_param('RegionId', region_id)
+                        req.add_query_param('SecurityGroupId', security_group_id)
+                        req.add_query_param('IpProtocol', 'all')
+                        req.add_query_param('SourceCidrIp', src_ip + '/32')
+                        req.add_query_param('Policy', 'Drop')
+                        
+                        client.do_action_with_exception(req)
+                    except Exception as e:
+                        # Continue with delete even if unblock fails
+                        pass
+            
+            # Hapus dari database
+            ip_block.delete()
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'IP {src_ip} berhasil dihapus dari block list'
+            })
+            
+        except IpBlock.DoesNotExist:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'IP Block record not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Error deleting IP: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Invalid request method'
+    })
+
+
 # ============ DELETE DATA VIEWS ============
 
 @login_required(login_url='/login/')
