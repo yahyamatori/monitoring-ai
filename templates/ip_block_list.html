@@ -337,8 +337,16 @@
             currentBlockId = blockId;
             document.getElementById('blockIpAddress').textContent = ipAddress;
             
-            // Load security groups
-            fetch('{% url "get_security_groups" %}')
+            // Get hostname from attack logs for auto-detect
+            const hostname = getHostnameForBlock(ipAddress);
+            
+            // Load security groups with hostname for auto-detect
+            let url = '{% url "get_security_groups" %}';
+            if (hostname) {
+                url += '?hostname=' + encodeURIComponent(hostname);
+            }
+            
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     const select = document.getElementById('securityGroupSelect');
@@ -346,10 +354,20 @@
                     
                     if (data.status === 'success') {
                         securityGroups = data.security_groups;
+                        
+                        // Add indicator for auto-detected
+                        if (data.auto_detected) {
+                            select.innerHTML = '<option value="">Auto-detected for ' + hostname + '</option>';
+                        }
+                        
                         securityGroups.forEach(sg => {
                             const option = document.createElement('option');
                             option.value = sg.id;
-                            option.textContent = sg.name + ' (' + sg.id + ')';
+                            let label = sg.name + ' (' + sg.id + ')';
+                            if (sg.source === 'instance_mapping') {
+                                label += ' - from mapping';
+                            }
+                            option.textContent = label;
                             select.appendChild(option);
                         });
                     } else {
@@ -362,6 +380,26 @@
             
             const modal = new bootstrap.Modal(document.getElementById('blockModal'));
             modal.show();
+        }
+        
+        // Get hostname from recent attack logs for the IP
+        function getHostnameForBlock(ipAddress) {
+            // Try to get from attack logs in the page
+            const attackRows = document.querySelectorAll('tbody tr');
+            for (let row of attackRows) {
+                const cells = row.querySelectorAll('td');
+                if (cells.length > 0) {
+                    const rowIp = cells[0].textContent.trim();
+                    if (rowIp === ipAddress && cells.length > 5) {
+                        // Check if there's hostname info in the row
+                        const hostnameCell = cells[5]; // Assuming hostname is in 6th column
+                        if (hostnameCell && hostnameCell.textContent.trim() !== '-' && hostnameCell.textContent.trim() !== '') {
+                            return hostnameCell.textContent.trim();
+                        }
+                    }
+                }
+            }
+            return '';
         }
         
         // Confirm block IP

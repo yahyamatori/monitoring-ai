@@ -308,6 +308,25 @@ def auto_add_to_block_list(request):
 def get_security_groups(request):
     """Mendapatkan daftar Security Groups dari Alibaba Cloud"""
     
+    # Get hostname parameter if provided
+    hostname = request.GET.get('hostname', '')
+    
+    # Try to get from instance_mapping first (auto-detect)
+    if hostname:
+        instance = InstanceMapping.objects.filter(hostname=hostname, is_active=True).first()
+        if instance and instance.security_group_id:
+            return JsonResponse({
+                'status': 'success',
+                'security_groups': [{
+                    'id': instance.security_group_id,
+                    'name': instance.security_group_name or instance.security_group_id,
+                    'source': 'instance_mapping',
+                    'hostname': hostname
+                }],
+                'auto_detected': True
+            })
+    
+    # Fallback to Alibaba Cloud SDK
     try:
         from aliyunsdkcore.client import AcsClient
         from aliyunsdkcore.request import CommonRequest
@@ -317,9 +336,28 @@ def get_security_groups(request):
         region_id = getattr(settings, 'ALIYUN_REGION_ID', 'ap-southeast-3')
         
         if not access_key or not access_secret:
+            # Return from instance_mapping as fallback
+            instances = InstanceMapping.objects.filter(is_active=True)
+            security_groups = []
+            seen_sgs = set()
+            for inst in instances:
+                if inst.security_group_id and inst.security_group_id not in seen_sgs:
+                    security_groups.append({
+                        'id': inst.security_group_id,
+                        'name': inst.security_group_name or inst.security_group_id,
+                        'source': 'instance_mapping'
+                    })
+                    seen_sgs.add(inst.security_group_id)
+            
+            if security_groups:
+                return JsonResponse({
+                    'status': 'success',
+                    'security_groups': security_groups,
+                    'source': 'instance_mapping'
+                })
             return JsonResponse({
                 'status': 'error', 
-                'message': 'Alibaba Cloud credentials not configured'
+                'message': 'Alibaba Cloud credentials not configured and no instance mappings found'
             })
         
         client = AcsClient(access_key, access_secret, region_id)
@@ -342,15 +380,37 @@ def get_security_groups(request):
                 security_groups.append({
                     'id': sg['SecurityGroupId'],
                     'name': sg['SecurityGroupName'],
-                    'vpc_id': sg.get('VpcId', '')
+                    'vpc_id': sg.get('VpcId', ''),
+                    'source': 'aliyun'
                 })
         
         return JsonResponse({
             'status': 'success',
-            'security_groups': security_groups
+            'security_groups': security_groups,
+            'source': 'aliyun'
         })
         
     except Exception as e:
+        # Final fallback to instance_mapping
+        instances = InstanceMapping.objects.filter(is_active=True)
+        security_groups = []
+        seen_sgs = set()
+        for inst in instances:
+            if inst.security_group_id and inst.security_group_id not in seen_sgs:
+                security_groups.append({
+                    'id': inst.security_group_id,
+                    'name': inst.security_group_name or inst.security_group_id,
+                    'source': 'instance_mapping'
+                })
+                seen_sgs.add(inst.security_group_id)
+        
+        if security_groups:
+            return JsonResponse({
+                'status': 'success',
+                'security_groups': security_groups,
+                'source': 'instance_mapping'
+            })
+        
         return JsonResponse({
             'status': 'error',
             'message': str(e)
