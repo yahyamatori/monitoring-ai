@@ -3,6 +3,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.admin.sites import site
 from django.db.models import Count, Sum, Max
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.utils import timezone
 from datetime import timedelta, datetime
 from .models import AttackLog, Alert, ThresholdConfig, IpBlock, InstanceMapping
@@ -159,8 +160,16 @@ def attack_analysis(request):
         total=Sum('count')
     ).order_by('-total')[:20]
     
-    # Get filtered attack logs for table (paginated)
-    attack_logs = queryset.order_by('-timestamp')[:100]
+    # Get filtered attack logs for table (with pagination)
+    paginator = Paginator(queryset.order_by('-timestamp'), 25)  # 25 items per page
+    page = request.GET.get('page', 1)
+    
+    try:
+        attack_logs = paginator.page(page)
+    except PageNotAnInteger:
+        attack_logs = paginator.page(1)
+    except EmptyPage:
+        attack_logs = paginator.page(paginator.num_pages)
     
     # Total count
     total_count = queryset.aggregate(total=Sum('count'))['total'] or 0
