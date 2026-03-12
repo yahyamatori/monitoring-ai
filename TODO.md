@@ -1,16 +1,8 @@
-# TODO - Attack Analysis Menu
+# Fix Top 10 Attackers Table Duplicates
 
-## Plan:
-- [x] 1. Tambahkan fungsi view `attack_analysis` di `dashboard/views.py`
-- [x] 2. Tambahkan URL pattern di `soc_dashboard/urls.py`
-- [x] 3. Buat template baru `templates/attack_analysis.html` (sudah ada)
-- [x] 4. Update `templates/home.html` - tambahkan menu link
-- [x] 5. Buat template `templates/ip_block_list.html` untuk IP blocking
-- [x] 6. Update `templates/attack_analysis.html` - tambahkan menu link IP Block
-- [x] 7. Update `soc_dashboard/settings.py` - tambahkan konfigurasi Alibaba Cloud
-
-## Completed Features:
-- Attack Analysis menu dengan filter (date range, attack type, severity, IP)
-- Analisis pola serangan: top attackers, attack types, severity, protocol, ports
-- IP Block List untuk memblokir IP attacker via Alibaba Cloud Security Group
-- Menu sidebar yang menghubungkan ke kedua halaman
+## Steps:
+1. [x] Edit dashboard/views.py: Change Count('id') to Sum('count') in top_attackers query
+2. [x] Add new query top_attackers_ip_only: group by src_ip only with Sum('count')
+3. [x] Update templates/attack_analysis.html: Add new table for IP-only top attackers
+4. [x] Test in browser: Verify no duplicates, accurate totals (runserver and check Attack Analysis page)
+5. [x] Complete: Fixed aggregation error (Count('id') → Sum('count')), added duplicate-free IP-only table.

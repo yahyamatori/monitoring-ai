@@ -262,11 +262,36 @@
                                 <tr>
                                     <td><code>{{ attacker.src_ip }}</code></td>
                                     <td>{{ attacker.attack_type }}</td>
-                                    <td>{{ attacker.total }}</td>
+                                    <td><strong>{{ attacker.total }}</strong></td>
                                 </tr>
                                 {% empty %}
                                 <tr>
                                     <td colspan="3" class="text-center">No data</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="table-card">
+                        <h5><i class="bi bi-person-check"></i> Top 10 Attackers (by IP only - No Duplicates)</h5>
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>IP Address</th>
+                                    <th>Total Attacks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for attacker in top_attackers_ip_only %}
+                                <tr>
+                                    <td><code>{{ attacker.src_ip }}</code></td>
+                                    <td><strong>{{ attacker.total }}</strong></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="2" class="text-center">No data</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

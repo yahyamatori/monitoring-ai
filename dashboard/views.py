@@ -143,7 +143,12 @@ def attack_analysis(request):
     # Analysis data
     # Top 10 attackers - dikelompokkan berdasarkan IP dan Attack Type
     top_attackers = queryset.values('src_ip', 'attack_type').annotate(
-        total=Count('id')
+        total=Sum('count')
+    ).order_by('-total')[:10]
+
+    # Top 10 attackers by IP only (aggregated across all attack types, no duplicates)
+    top_attackers_ip_only = queryset.values('src_ip').annotate(
+        total=Sum('count')
     ).order_by('-total')[:10]
     
     # Attack types distribution
@@ -192,7 +197,8 @@ def attack_analysis(request):
         'severity_dist': severity_dist,
         'protocol_dist': protocol_dist,
         'dst_ports': dst_ports,
-        'attack_patterns': attack_patterns,
+'attack_patterns': attack_patterns,
+        'top_attackers_ip_only': top_attackers_ip_only,
         'total_count': total_count,
         'attack_types': attack_types,
         'severities': severities,
